@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE log4j:configuration SYSTEM "log4j.dtd" >
+<log4j:configuration xmlns:log4j="http://jakarta.apache.org/log4j/">
+    <!-- ######################## START - Log4j Appenders ######################## -->
+
+    <appender name="nullAppender" class="org.apache.log4j.varia.NullAppender"/>
+
+    <!--
+      This ConsoleAppender is used to log to log to the console
+    -->
+    <appender name="consoleAppender" class="org.apache.log4j.ConsoleAppender">
+        <layout class="org.apache.log4j.PatternLayout">
+            <param name="ConversionPattern" value="%d{yyyy-MM-dd HH:mm:ss,SSS} | %X{uuid} | ${client} | %p | %c | %m%n"/>
+        </layout>
+    </appender>
+
+    <!--
+      This DailyRollingFileAppender is used to log to a text file that rolls daily at midnight
+    -->
+    <appender name="fileAppender" class="org.apache.log4j.DailyRollingFileAppender">
+        <param name="file" value="logs/infra-debug.log" />
+        <param name="datePattern" value="'.'yyyy-MM-dd" />
+        <param name="append" value="true" />
+        <layout class="org.apache.log4j.PatternLayout">
+            <param name="ConversionPattern" value="%d{yyyy-MM-dd HH:mm:ss,SSS} | %X{uuid} | ${client} | %p | %c | %m%n"/>
+        </layout>
+    </appender>
+
+    <appender name="cliSystemErr" class="org.apache.log4j.ConsoleAppender">
+        <param name="Target" value="System.err"/>
+        <layout class="org.apache.log4j.PatternLayout">
+            <param name="ConversionPattern" value="%m%n"/>
+        </layout>
+    </appender>
+
+    <appender name="validatorFileAppender" class="org.apache.log4j.DailyRollingFileAppender">
+        <param name="file" value="logs/${client}/validation-details.log" />
+        <param name="datePattern" value="'.'yyyy-MM-dd" />
+        <param name="append" value="true" />
+        <layout class="org.apache.log4j.PatternLayout">
+            <param name="ConversionPattern" value="%d{yyyy-MM-dd HH:mm:ss,SSS} | %X{uuid} | ${client} | %p | %m%n"/>
+        </layout>
+    </appender>
+
+
+    <!--
+      This FileAppender is used to output the graph URLs generated
+      by the GraphingStatisticsAppenders
+    -->
+    <appender name="graphsFileAppender" class="org.apache.log4j.DailyRollingFileAppender">
+        <param name="File" value="logs/perfGraphs.log"/>
+        <param name="datePattern" value="'.'yyyy-MM-dd" />
+        <param name="append" value="true" />
+        <layout class="org.apache.log4j.PatternLayout">
+            <param name="ConversionPattern" value="%m%n"/>
+        </layout>
+    </appender>
+
+    <!-- This FileAppender is used to output aggregated performance statistics -->
+    <appender name="performanceFileAppender" class="org.apache.log4j.DailyRollingFileAppender">
+        <param name="File" value="logs/perfStats.log"/>
+        <param name="datePattern" value="'.'yyyy-MM-dd" />
+        <param name="append" value="true" />
+        <layout class="org.apache.log4j.PatternLayout">
+            <param name="ConversionPattern" value="%m%n"/>
+        </layout>
+    </appender>
+    <!-- ######################### END - Log4j Appenders ######################### -->
+
+    <!-- ######################## START - Perf4J Appenders ######################## -->
+    <!--
+       This AsyncCoalescingStatisticsAppender groups StopWatch log messages
+       into GroupedTimingStatistics messages which it sends on the
+       file appender defined below
+    -->
+    <appender name="coalescingStatistics" class="org.perf4j.log4j.AsyncCoalescingStatisticsAppender">
+        <!--
+          The TimeSlice option is used to determine the time window for which
+          all received StopWatch logs are aggregated to create a single
+          GroupedTimingStatistics log.
+        -->
+        <param name="TimeSlice" value="5"/>
+        <appender-ref ref="performanceFileAppender"/>
+        <appender-ref ref="graphExecutionTimes"/>
+    </appender>
+
+    <!--
+      This GraphingStatisticsAppender graphs transactions per second for the tags defined
+    -->
+    <appender name="graphExecutionTPS" class="org.perf4j.log4j.GraphingStatisticsAppender">
+        <param name="GraphType" value="TPS"/>
+        <param name="TagNamesToGraph" value="Parse-to-BEANS,Parse-to-MAPS,parseRowToBean,parseRowToMap"/>
+        <appender-ref ref="graphsFileAppender"/>
+    </appender>
+
+    <!--
+      This GraphingStatisticsAppender graphs Mean execution times for the tags defined
+    -->
+    <appender name="graphExecutionTimes" class="org.perf4j.log4j.GraphingStatisticsAppender">
+        <!-- Possible GraphTypes are Mean, Min, Max, StdDev, Count and TPS -->
+        <param name="GraphType" value="Mean"/>
+        <!-- The tags of the timed execution blocks to graph are specified here -->
+        <param name="TagNamesToGraph" value="parseFileToBeans,parseFileToMaps,parseRowToBean,parseRowToMap,ValidateProductActivity,ValidateFormatActivity,SwitchOnActivityName,ReflectOnActivityClass"/>
+        <appender-ref ref="graphsFileAppender"/>
+    </appender>
+    <!-- ######################### END - Perf4J Appenders ######################### -->
+
+    <!-- ######################### START - Perf4j Loggers ######################### -->
+    <!--
+      The Perf4J logger. Note that org.perf4j.TimingLogger is the value of the
+      org.perf4j.StopWatch.DEFAULT_LOGGER_NAME constant. Also, note that
+      additivity is set to false, which is usually what is desired - this means
+      that timing statements will only be sent to this logger and NOT to
+      upstream loggers.
+    -->
+    <logger name="org.perf4j.TimingLogger" additivity="false">
+        <level value="INFO"/>
+        <appender-ref ref="coalescingStatistics"/>
+    </logger>
+    <!-- ######################### END - Perf4j Loggers ######################### -->
+
+    <!-- ######################### START - Log4j Loggers ######################### -->
+    <logger name="com.paypal.common" additivity="true">
+        <level value="DEBUG" />
+        <appender-ref ref="fileAppender"/>
+    </logger>
+
+    <logger name="com.paypal.common.oflows.activities.ValidateResourceFiles" additivity="true">
+        <level value="INFO" />
+        <appender-ref ref="validatorFileAppender"/>
+    </logger>
+
+    <logger name="com.paypal.common.oflows.cli.ActivityCli" additivity="true">
+        <level value="INFO" />
+        <appender-ref ref="cliSystemErr"/>
+		<appender-ref ref="validatorFileAppender"/>
+    </logger>
+
+    <!-- This is the default log4j logger -->
+    <root>
+        <priority value="DEBUG"/>
+        <appender-ref ref="fileAppender"/>
+    </root>
+    <!-- ######################### END - Log4j Loggers ######################### -->
+</log4j:configuration>
